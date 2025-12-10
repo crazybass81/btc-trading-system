@@ -91,6 +91,73 @@ class BTCTradingSystem:
 
         return features
 
+    def create_30m_enhanced_features(self, df):
+        """30분 모델용 향상된 특징 생성 (정확히 30개)"""
+        features = pd.DataFrame(index=df.index)
+
+        # 1-13. 가격 및 볼륨 변화율
+        for period in [1, 2, 3, 5, 7, 10, 15, 20]:
+            if len(df) > period:
+                if period in [1, 2, 3, 10, 20]:  # return features
+                    features[f'return_{period}'] = df['close'].pct_change(period).fillna(0)
+                features[f'volume_change_{period}'] = df['volume'].pct_change(period).fillna(0)
+
+        # 14-16. RSI (7, 14, 28)
+        for period in [7, 14, 28]:
+            delta = df['close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(period).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(period).mean()
+            rs = gain / (loss + 1e-10)
+            features[f'rsi_{period}'] = 100 - (100 / (1 + rs))
+
+        # 17-18. MACD 변형
+        for fast, slow in [(5, 35), (10, 20)]:
+            exp1 = df['close'].ewm(span=fast).mean()
+            exp2 = df['close'].ewm(span=slow).mean()
+            features[f'macd_{fast}_{slow}'] = exp1 - exp2
+
+        # 19-23. 볼린저 밴드
+        for period in [10, 20, 30]:
+            sma = df['close'].rolling(period).mean()
+            std = df['close'].rolling(period).std()
+            features[f'bb_width_{period}'] = (2 * std) / (sma + 1e-10)
+            if period in [20, 30]:
+                features[f'bb_position_{period}'] = (df['close'] - sma) / (2 * std + 1e-10)
+
+        # 24-25. 볼륨 프로파일
+        features['volume_sma_ratio'] = df['volume'] / (df['volume'].rolling(20).mean() + 1e-10)
+        features['volume_std'] = df['volume'].rolling(20).std() / (df['volume'].rolling(20).mean() + 1e-10)
+
+        # 26-27. 변동성 지표
+        features['true_range'] = pd.concat([
+            df['high'] - df['low'],
+            abs(df['high'] - df['close'].shift()),
+            abs(df['low'] - df['close'].shift())
+        ], axis=1).max(axis=1)
+        features['atr'] = features['true_range'].rolling(14).mean() / (df['close'] + 1e-10)
+
+        # 28-29. 패턴 인식
+        features['doji'] = (abs(df['close'] - df['open']) / (df['high'] - df['low'] + 1e-10)).rolling(3).mean()
+        features['pin_bar'] = ((df['high'] - df['close']) / (df['high'] - df['low'] + 1e-10)).rolling(3).mean()
+
+        # 30. MA 100 slope (중기 트렌드)
+        ma_100 = df['close'].rolling(100).mean()
+        features['ma_100_slope'] = (ma_100 - ma_100.shift(5)) / (ma_100.shift(5) + 1e-10)
+
+        # 선택된 30개 features만 반환 (정확한 순서로)
+        selected_features = [
+            'return_1', 'volume_change_1', 'return_2', 'volume_change_2',
+            'return_3', 'volume_change_3', 'volume_change_5', 'volume_change_7',
+            'return_10', 'volume_change_10', 'volume_change_15', 'return_20',
+            'volume_change_20', 'rsi_7', 'rsi_14', 'rsi_28',
+            'macd_5_35', 'macd_10_20', 'bb_width_10', 'bb_width_20',
+            'bb_position_20', 'bb_width_30', 'bb_position_30',
+            'volume_sma_ratio', 'volume_std', 'true_range', 'atr',
+            'doji', 'pin_bar', 'ma_100_slope'
+        ]
+
+        return features[selected_features].fillna(0)
+
     def create_trend_features(self, df, timeframe):
         """트렌드 중심 특징 (30분/4시간/1일 모델용)"""
         features = pd.DataFrame(index=df.index)
@@ -140,8 +207,11 @@ class BTCTradingSystem:
             # 타임프레임별 특징 생성
             if timeframe == '15m':
                 features = self.prepare_basic_features(df)
+            elif timeframe == '30m':
+                # 30m은 enhanced features 사용
+                features = self.create_30m_enhanced_features(df)
             else:
-                # 30m, 4h, 1d는 트렌드 특징 사용
+                # 4h, 1d는 트렌드 특징 사용
                 features = self.create_trend_features(df, timeframe)
 
             X = features.dropna().iloc[-1:]
