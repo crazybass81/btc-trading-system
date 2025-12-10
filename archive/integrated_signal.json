@@ -1,0 +1,34 @@
+{
+  "timestamp": "2025-12-10T12:24:24.458110",
+  "price": 92052.03,
+  "signal": "NEUTRAL",
+  "confidence": 55.5,
+  "timeframes": {
+    "5m": {
+      "ml_signal": "NEUTRAL",
+      "ml_confidence": 83.65320197737061,
+      "tech_signal": "LONG",
+      "tech_confidence": 75,
+      "final_signal": "LONG",
+      "final_confidence": 67.5
+    },
+    "15m": {
+      "ml_signal": "NEUTRAL",
+      "ml_confidence": 55.35068767646223,
+      "tech_signal": "NEUTRAL",
+      "tech_confidence": 50,
+      "final_signal": "NEUTRAL",
+      "final_confidence": 45.0
+    },
+    "1h": {
+      "ml_signal": "NEUTRAL",
+      "ml_confidence": 51.61428580269637,
+      "tech_signal": "SHORT",
+      "tech_confidence": 60,
+      "final_signal": "SHORT",
+      "final_confidence": 54.0
+    }
+  },
+  "support": 91763.69,
+  "resistance": 93291.5
+}

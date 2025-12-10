@@ -1,0 +1,26 @@
+{
+  "timestamp": "2025-12-10T11:55:52.792315",
+  "symbol": "BTC/USDT",
+  "current_price": 92104.42,
+  "ml_signal": "NEUTRAL",
+  "ml_confidence": 65.93585989283991,
+  "final_signal": "NEUTRAL",
+  "final_confidence": 0,
+  "filters_passed": [],
+  "filters_failed": [],
+  "regime": {
+    "regime": "normal",
+    "trend_direction": 1,
+    "volatility_percentile": 51.0
+  },
+  "supports": [
+    92061.0,
+    92027.89,
+    91976.0
+  ],
+  "resistances": [
+    92361.6,
+    92390.37,
+    92400.0
+  ]
+}

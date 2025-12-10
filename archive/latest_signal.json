@@ -1,0 +1,72 @@
+{
+  "timestamp": "2025-12-10T11:46:32.623450",
+  "symbol": "BTC/USDT",
+  "current_price": 91776.72,
+  "position": "NEUTRAL",
+  "confidence": 98.0,
+  "supports": [
+    {
+      "price": 91774.38,
+      "type": "support",
+      "strength": 60,
+      "source": "pivot_low"
+    }
+  ],
+  "resistances": [
+    {
+      "price": 92782.92,
+      "type": "resistance",
+      "strength": 100,
+      "source": "pivot_high"
+    },
+    {
+      "price": 92790.0,
+      "type": "resistance",
+      "strength": 100,
+      "source": "pivot_high"
+    },
+    {
+      "price": 92972.07,
+      "type": "resistance",
+      "strength": 80,
+      "source": "pivot_high"
+    }
+  ],
+  "trend_signals": {
+    "5m": {
+      "score": -35,
+      "rsi": 18.351192199991416,
+      "macd_hist": -46.81331146466697,
+      "bb_position": -0.015232072093215076,
+      "volume_ratio": 1.0399004460348507
+    },
+    "15m": {
+      "score": 25,
+      "rsi": 29.165934299730225,
+      "macd_hist": -86.50554310257252,
+      "bb_position": -0.12648765330971395,
+      "volume_ratio": 0.5080419827296639
+    },
+    "1h": {
+      "score": -30,
+      "rsi": 37.50904323969287,
+      "macd_hist": -144.22164077529374,
+      "bb_position": 0.09274024217844891,
+      "volume_ratio": 0.9973382179490885
+    },
+    "4h": {
+      "score": 30,
+      "rsi": 53.473298797921345,
+      "macd_hist": 178.08111932367854,
+      "bb_position": 0.6240849069723591,
+      "volume_ratio": 0.8952111546981372
+    }
+  },
+  "micro_signals": {
+    "volatility": 0.005094077777490057,
+    "vol_percentile": 51.0,
+    "spread": 0.0072414878195689635,
+    "spread_percentile": 63.5,
+    "order_flow": 0.010754772077508856
+  }
+}
