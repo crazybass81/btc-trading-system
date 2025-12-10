@@ -5,13 +5,13 @@
 
 ## 📊 시스템 개요
 
-### 🏆 최고 성능 모델 (고신뢰도 정확도)
-| 순위 | 타임프레임 | 전략 | 모델 | 정확도 |
-|------|-----------|------|------|--------|
-| **1위** | **30분** | **Breakout** | NeuralNet | **80.5%** |
-| **2위** | **30분** | **Trend Following** | GradientBoost | **80.1%** |
-| **3위** | **4시간** | **Trend Following** | NeuralNet | **77.8%** |
-| **4위** | **15분** | **Trend Following** | GradientBoost | **75.7%** |
+### 🏆 현재 운영 모델 (검증된 성능)
+| 타임프레임 | 전략 | 모델 | 정확도 | 특징 |
+|-----------|------|------|--------|------|
+| **30분** | **Breakout** | NeuralNet | **80.5%** | 🌟 최고 성능, 레벨 돌파 특화 |
+| **4시간** | **Trend Following** | NeuralNet | **77.8%** | 📈 장기 추세 포착 |
+| **15분** | **Trend Following** | GradientBoost | **75.7%** | ⚡ 단기 추세 |
+| **1시간** | **Trend Following** | GradientBoost | **67.9%** | 📊 중기 추세 |
 
 ### 💡 핵심 개선사항
 - **방향성 예측 특화**: UP/DOWN만 예측 (NEUTRAL 편향 제거)
@@ -52,21 +52,24 @@ python run.py backtest
 ```
 btc_trading_system/
 ├── core/
-│   └── main.py                    # 메인 시스템
+│   └── main.py                                      # 메인 시스템 (수정됨)
 ├── models/
 │   ├── trend_following_15m_gradientboost_model.pkl  # 15분 추세추종
-│   ├── trend_following_30m_gradientboost_model.pkl  # 30분 추세추종
 │   ├── trend_following_1h_gradientboost_model.pkl   # 1시간 추세추종
 │   ├── trend_following_4h_neuralnet_model.pkl       # 4시간 추세추종
 │   ├── breakout_30m_neuralnet_model.pkl            # 30분 돌파 (최고성능)
 │   └── *_scaler.pkl                                # 각 모델 스케일러
+├── training/                      # 훈련 스크립트
+│   ├── train_directional_models.py
+│   └── train_multiple_strategies.py
 ├── data/
 │   └── latest_signal.json        # 최신 신호
 ├── docs/
 │   ├── BEST_MODELS_SUMMARY.md    # 모델 성능 요약
 │   └── CLAUDE_DESKTOP_SETUP.md   # MCP 서버 설정
 ├── mcp_server.py                 # MCP 서버 (Claude Desktop)
-└── run.py                        # 실행 스크립트
+├── run.py                        # 실행 스크립트
+└── CHANGELOG.md                  # 변경 이력
 ```
 
 ---

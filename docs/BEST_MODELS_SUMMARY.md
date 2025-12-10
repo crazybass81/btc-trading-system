@@ -1,6 +1,17 @@
 # 🏆 최고 성능 모델 요약
 
-## 📊 전체 결과 요약
+**최종 업데이트: 2024-12-10 (v2.0.1)**
+
+## 🚀 현재 운영 모델
+
+| 타임프레임 | 전략 | 모델 타입 | 정확도 | 파일명 | 상태 |
+|-----------|------|-----------|--------|--------|------|
+| **30분** | Breakout | NeuralNet | **80.5%** | `breakout_30m_neuralnet_model.pkl` | ✅ 운영중 |
+| **4시간** | Trend Following | NeuralNet | **77.8%** | `trend_following_4h_neuralnet_model.pkl` | ✅ 운영중 |
+| **15분** | Trend Following | GradientBoost | **75.7%** | `trend_following_15m_gradientboost_model.pkl` | ✅ 운영중 |
+| **1시간** | Trend Following | GradientBoost | **67.9%** | `trend_following_1h_gradientboost_model.pkl` | ✅ 운영중 |
+
+## 📊 전체 테스트 결과 요약
 
 ### 선택된 모델들 (고신뢰도 60%+ 기준)
 
