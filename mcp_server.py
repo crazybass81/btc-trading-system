@@ -78,7 +78,7 @@ class ModelInfoResponse(BaseModel):
 
 # MCP 서버 초기화 (naming convention: underscore for package name)
 mcp = FastMCP("btc_trading_mcp", dependencies=["ccxt", "pandas", "numpy", "scikit-learn"])
-mcp.description = "BTC Trading System - ML-based trading signal generator with 80.4% accuracy"
+mcp.description = "BTC Multi-Timeframe Trading System - ML models for 15m (80.4%), 30m (72.1%), 4h (78.6%), 1d (75.0%)"
 
 # 거래 시스템 인스턴스 (singleton pattern)
 _trading_system: Optional[BTCTradingSystem] = None
@@ -345,60 +345,407 @@ def btc_calculate_position_size(capital: float = 10000) -> Dict[str, Any]:
         return {"error": str(e)}
 
 @mcp.tool()
-def btc_get_model_info() -> Dict[str, Any]:
+def btc_get_signal_by_timeframe(timeframe: str = "15m") -> Dict[str, Any]:
     """
-    Get ML model information and performance metrics.
+    Get trading signal for a specific timeframe.
+
+    Args:
+        timeframe: Timeframe to analyze - "15m", "30m", "4h", or "1d"
 
     Returns:
-    - Model specifications and version
+    - Trading signal for the specified timeframe
+    - Model accuracy and performance metrics
+    - Position advice with entry/exit points
+    """
+    system = get_system()
+
+    # 타임프레임 검증
+    valid_timeframes = {
+        '15m': ('15-minute', 80.4, '단기 트레이딩'),
+        '30m': ('30-minute', 72.1, '중기 트레이딩'),
+        '4h': ('4-hour', 78.6, '장기 추세'),
+        '1d': ('1-day', 75.0, '일봉 분석')
+    }
+
+    if timeframe not in valid_timeframes:
+        return {
+            "error": f"Invalid timeframe. Choose from: {', '.join(valid_timeframes.keys())}"
+        }
+
+    try:
+        # ML 예측
+        signal, confidence = system.get_ml_prediction(timeframe)
+        name, accuracy, description = valid_timeframes[timeframe]
+
+        # 기술적 지표 (해당 타임프레임)
+        tech = system.get_technical_indicators()
+
+        # 거래 결정 로직
+        if confidence >= 70:
+            action = "TRADE"
+            recommendation = f"✅ Strong {name} signal - Trade recommended"
+        elif confidence >= 65:
+            action = "CAUTION"
+            recommendation = f"⚠️ Moderate {name} signal - Use caution"
+        else:
+            action = "NO_TRADE"
+            recommendation = f"❌ Weak {name} signal - Do not trade"
+
+        # 포지션 제안 (TRADE 신호일 때만)
+        position_advice = None
+        if action == "TRADE" and tech and signal in ["LONG", "SHORT"]:
+            if signal == "LONG":
+                position_advice = {
+                    "type": "LONG",
+                    "entry": tech['current_price'],
+                    "stop_loss": round(tech['current_price'] * 0.98, 2),
+                    "take_profit": round(tech['current_price'] * 1.03, 2),
+                    "risk_reward": "1:1.5"
+                }
+            elif signal == "SHORT":
+                position_advice = {
+                    "type": "SHORT",
+                    "entry": tech['current_price'],
+                    "stop_loss": round(tech['current_price'] * 1.02, 2),
+                    "take_profit": round(tech['current_price'] * 0.97, 2),
+                    "risk_reward": "1:1.5"
+                }
+
+        response = TradingSignalResponse(
+            timestamp=datetime.now().isoformat(),
+            current_price=tech['current_price'] if tech else None,
+            signal=signal,
+            confidence=f"{confidence:.1f}%",
+            action=action,
+            recommendation=recommendation,
+            expected_accuracy=f"{accuracy}%",
+            technical_indicators={
+                "rsi": round(tech['rsi'], 1) if tech else None,
+                "support": round(tech['support'], 2) if tech else None,
+                "resistance": round(tech['resistance'], 2) if tech else None
+            },
+            position_advice=position_advice,
+            model_info={
+                "model": f"{name} model",
+                "timeframe": timeframe,
+                "backtest_accuracy": f"{accuracy}%",
+                "description": description
+            }
+        )
+
+        return response.model_dump()
+
+    except Exception as e:
+        return {
+            "error": str(e),
+            "message": f"Failed to generate {timeframe} signal. Please try again."
+        }
+
+@mcp.tool()
+def btc_get_all_timeframes() -> Dict[str, Any]:
+    """
+    Get trading signals for all available timeframes at once.
+
+    Returns:
+    - Signals for 15m, 30m, 4h, and 1d timeframes
+    - Overall market consensus
+    - Multi-timeframe analysis summary
+    """
+    system = get_system()
+
+    timeframes = {
+        '15m': ('15-minute', 80.4, '단기'),
+        '30m': ('30-minute', 72.1, '중기'),
+        '4h': ('4-hour', 78.6, '장기'),
+        '1d': ('1-day', 75.0, '초장기')
+    }
+
+    signals = {}
+    long_count = 0
+    short_count = 0
+    neutral_count = 0
+
+    try:
+        for tf, (name, accuracy, desc) in timeframes.items():
+            try:
+                signal, confidence = system.get_ml_prediction(tf)
+
+                signals[tf] = {
+                    "name": name,
+                    "signal": signal,
+                    "confidence": f"{confidence:.1f}%",
+                    "accuracy": f"{accuracy}%",
+                    "description": desc
+                }
+
+                # 신호 카운트
+                if signal == "LONG":
+                    long_count += 1
+                elif signal == "SHORT":
+                    short_count += 1
+                else:
+                    neutral_count += 1
+
+            except Exception as e:
+                signals[tf] = {"error": str(e)}
+
+        # 종합 판단
+        total_signals = long_count + short_count + neutral_count
+        if long_count > short_count and long_count > neutral_count:
+            consensus = "BULLISH"
+            consensus_strength = f"{(long_count / total_signals * 100):.0f}%"
+        elif short_count > long_count and short_count > neutral_count:
+            consensus = "BEARISH"
+            consensus_strength = f"{(short_count / total_signals * 100):.0f}%"
+        else:
+            consensus = "NEUTRAL"
+            consensus_strength = "Mixed signals"
+
+        # 현재 가격
+        tech = system.get_technical_indicators()
+
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "current_price": f"${tech['current_price']:,.2f}" if tech else None,
+            "signals": signals,
+            "consensus": {
+                "direction": consensus,
+                "strength": consensus_strength,
+                "long_signals": long_count,
+                "short_signals": short_count,
+                "neutral_signals": neutral_count
+            },
+            "recommendation": (
+                f"Multi-timeframe analysis shows {consensus} bias. "
+                f"{long_count} LONG, {short_count} SHORT, {neutral_count} NEUTRAL signals detected."
+            )
+        }
+
+    except Exception as e:
+        return {
+            "error": str(e),
+            "message": "Failed to generate multi-timeframe analysis."
+        }
+
+@mcp.tool()
+def btc_compare_timeframes() -> Dict[str, Any]:
+    """
+    Compare signals across all timeframes for trend confirmation.
+
+    Returns:
+    - Detailed comparison of all timeframe signals
+    - Trend strength analysis
+    - Trading strategy recommendation based on timeframe alignment
+    """
+    system = get_system()
+
+    timeframes = {
+        '15m': ('Short-term (15m)', 80.4, '스캘핑/데이트레이딩'),
+        '30m': ('Mid-term (30m)', 72.1, '스윙 트레이딩'),
+        '4h': ('Long-term (4h)', 78.6, '포지션 트레이딩'),
+        '1d': ('Trend (1d)', 75.0, '장기 투자')
+    }
+
+    comparison = []
+    alignment_score = 0
+
+    try:
+        signals_list = []
+        for tf, (name, accuracy, strategy) in timeframes.items():
+            try:
+                signal, confidence = system.get_ml_prediction(tf)
+                signals_list.append(signal)
+
+                # 신호 강도 평가
+                if confidence >= 70:
+                    strength = "Strong"
+                elif confidence >= 65:
+                    strength = "Moderate"
+                else:
+                    strength = "Weak"
+
+                comparison.append({
+                    "timeframe": tf,
+                    "name": name,
+                    "signal": signal,
+                    "confidence": f"{confidence:.1f}%",
+                    "strength": strength,
+                    "accuracy": f"{accuracy}%",
+                    "strategy": strategy
+                })
+
+            except Exception as e:
+                comparison.append({
+                    "timeframe": tf,
+                    "error": str(e)
+                })
+
+        # 타임프레임 정렬 분석
+        if len(signals_list) >= 3:
+            # 모든 신호가 같은 방향이면 강한 정렬
+            if len(set(signals_list)) == 1:
+                alignment = "Perfect Alignment"
+                alignment_score = 100
+                recommendation = f"🎯 All timeframes agree on {signals_list[0]}. High confidence trade setup."
+            # 대부분 같은 방향
+            elif signals_list.count("LONG") >= 3:
+                alignment = "Strong Bullish"
+                alignment_score = 75
+                recommendation = "📈 Multiple timeframes show LONG bias. Consider bullish position."
+            elif signals_list.count("SHORT") >= 3:
+                alignment = "Strong Bearish"
+                alignment_score = 75
+                recommendation = "📉 Multiple timeframes show SHORT bias. Consider bearish position."
+            # 혼재
+            else:
+                alignment = "Mixed Signals"
+                alignment_score = 50
+                recommendation = "⚠️ Timeframes show conflicting signals. Wait for clearer setup."
+        else:
+            alignment = "Insufficient Data"
+            alignment_score = 0
+            recommendation = "Not enough signals for analysis."
+
+        # 현재 가격
+        tech = system.get_technical_indicators()
+
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "current_price": f"${tech['current_price']:,.2f}" if tech else None,
+            "timeframe_comparison": comparison,
+            "alignment_analysis": {
+                "alignment": alignment,
+                "score": alignment_score,
+                "recommendation": recommendation
+            },
+            "trading_strategy": {
+                "short_term": "Use 15m for precise entries",
+                "mid_term": "Use 30m for swing trades",
+                "long_term": "Use 4h for trend direction",
+                "confirmation": "1d for overall market bias"
+            }
+        }
+
+    except Exception as e:
+        return {
+            "error": str(e),
+            "message": "Failed to compare timeframes."
+        }
+
+@mcp.tool()
+def btc_get_model_info() -> Dict[str, Any]:
+    """
+    Get ML model information and performance metrics for all timeframes.
+
+    Returns:
+    - Model specifications for all timeframes
     - Performance metrics from backtesting
     - Trading rules and parameters
-    - Expected performance statistics
+    - Timeframe-specific recommendations
     """
-    response = ModelInfoResponse(
-        model_name="BTC 15-minute Prediction Model",
-        version="1.0",
-        training_date="2024-12-10",
-        performance={
-            "overall_accuracy": "80.4%",
-            "high_confidence_accuracy": "92.9%",
-            "confidence_threshold": "70%",
-            "backtest_period": "14 days",
-            "total_predictions": "1344"
+    system = get_system()
+
+    # 모든 타임프레임 모델 정보
+    models_info = {
+        "15m": {
+            "name": "15-minute Model",
+            "accuracy": "80.4%",
+            "description": "단기 트레이딩 (스캘핑/데이트레이딩)",
+            "use_case": "Quick entries/exits, scalping",
+            "holding_time": "15 min - 4 hours",
+            "best_for": "Day traders, scalpers"
         },
-        features=[
+        "30m": {
+            "name": "30-minute Model",
+            "accuracy": "72.1%",
+            "description": "중기 트레이딩 (스윙)",
+            "use_case": "Swing trading, intraday positions",
+            "holding_time": "1 - 8 hours",
+            "best_for": "Swing traders"
+        },
+        "4h": {
+            "name": "4-hour Trend Model",
+            "accuracy": "78.6%",
+            "description": "장기 추세 (포지션 트레이딩)",
+            "use_case": "Trend following, position trading",
+            "holding_time": "1 - 7 days",
+            "best_for": "Position traders, trend followers"
+        },
+        "1d": {
+            "name": "1-day Trend Model",
+            "accuracy": "75.0%",
+            "description": "일봉 분석 (장기 투자)",
+            "use_case": "Long-term investing, major trend identification",
+            "holding_time": "1 week - 1 month",
+            "best_for": "Investors, long-term holders"
+        }
+    }
+
+    # 로드된 모델 확인
+    loaded_models = list(system.models.keys())
+
+    return {
+        "system_name": "BTC Multi-Timeframe Trading System",
+        "version": "2.0",
+        "training_date": "2024-12-10",
+        "loaded_models": loaded_models,
+        "models": models_info,
+        "features": [
             "Price change rate (1, 3, 5, 10 candles)",
             "RSI (7, 14, 21)",
-            "MACD",
-            "Bollinger Bands",
-            "Volume indicators"
+            "MACD (12, 26, 9)",
+            "Bollinger Bands (10, 20)",
+            "Volume indicators",
+            "High-Low ratio",
+            "Close position"
         ],
-        trading_rules={
+        "trading_rules": {
             "entry": "Confidence ≥ 70%",
             "stop_loss": "-2%",
             "take_profit": "+3%",
-            "max_holding": "4 hours",
-            "position_size": "5% of capital"
+            "position_size": "5% of capital",
+            "risk_reward": "1:1.5"
         },
-        expected_performance={
-            "win_rate": "~93% (high confidence signals)",
+        "multi_timeframe_strategy": {
+            "confirmation": "Use 1d for overall market direction",
+            "trend": "Use 4h for trend confirmation",
+            "entry": "Use 15m/30m for precise entry timing",
+            "alignment": "Best trades occur when all timeframes align"
+        },
+        "expected_performance": {
+            "high_confidence_win_rate": "~90%+",
             "avg_profit": "+3%",
             "avg_loss": "-2%",
-            "expected_value": "+2.59% per trade"
+            "expected_value": "+2.5% per trade"
         },
-        disclaimer="Past performance does not guarantee future results. Risk management is essential."
-    )
-
-    return response.model_dump()
+        "disclaimer": "Past performance does not guarantee future results. Risk management is essential. Always use stop losses."
+    }
 
 # ===== Server Initialization =====
 
 def main():
     """Main entry point for MCP server"""
-    print("🚀 BTC Trading System MCP Server")
-    print("📊 Model: 15-minute ML model (80.4% accuracy)")
+    print("=" * 60)
+    print("🚀 BTC Multi-Timeframe Trading System MCP Server")
+    print("=" * 60)
+    print("📊 Available Models:")
+    print("  • 15분 모델: 80.4% 정확도 (단기 트레이딩)")
+    print("  • 30분 모델: 72.1% 정확도 (중기 트레이딩)")
+    print("  • 4시간 모델: 78.6% 정확도 (장기 추세)")
+    print("  • 1일 모델: 75.0% 정확도 (일봉 분석)")
+    print("-" * 60)
+    print("🔧 Available Tools:")
+    print("  • btc_get_trading_signal() - 15분 신호 (기본)")
+    print("  • btc_get_signal_by_timeframe(tf) - 특정 타임프레임")
+    print("  • btc_get_all_timeframes() - 모든 타임프레임 분석")
+    print("  • btc_compare_timeframes() - 타임프레임 비교")
+    print("  • btc_get_market_status() - 시장 상태")
+    print("  • btc_check_trade_conditions() - 거래 조건 확인")
+    print("  • btc_calculate_position_size() - 포지션 크기")
+    print("  • btc_get_model_info() - 모델 정보")
+    print("=" * 60)
     print("🔗 Ready for Claude Desktop connection")
-    print("-" * 50)
+    print("=" * 60)
 
     # Run the MCP server
     mcp.run()

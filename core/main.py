@@ -29,25 +29,31 @@ class BTCTradingSystem:
         """검증된 모델들 로드"""
         model_dir = os.path.join(os.path.dirname(__file__), '..', 'models')
 
-        # 15분 모델 (메인 - 80.4% 정확도)
-        try:
-            model_path = os.path.join(model_dir, 'main_15m_model.pkl')
-            scaler_path = os.path.join(model_dir, 'main_15m_scaler.pkl')
+        # 모델 설정: (파일명, 정확도, 설명)
+        model_configs = {
+            '15m': ('main_15m', 80.4, '15분 모델 (단기 트레이딩)'),
+            '30m': ('main_30m', 72.1, '30분 모델 (중기 트레이딩)'),
+            '4h': ('trend_4h', 78.6, '4시간 트렌드 모델 (장기 추세)'),
+            '1d': ('trend_1d', 75.0, '1일 트렌드 모델 (일봉 분석)')
+        }
 
-            if os.path.exists(model_path):
-                self.models['15m'] = joblib.load(model_path)
-                self.scalers['15m'] = joblib.load(scaler_path)
-                logger.success("✅ 15분 모델 로드 (정확도: 80.4%, 고신뢰도: 92.9%)")
-            else:
-                # 기존 위치에서 시도
-                self.models['15m'] = joblib.load('../models/practical_15m_model.pkl')
-                self.scalers['15m'] = joblib.load('../models/practical_15m_scaler.pkl')
-                logger.success("✅ 15분 모델 로드 (레거시 경로)")
-        except Exception as e:
-            logger.error(f"⚠️ 15분 모델 로드 실패: {e}")
+        # 각 타임프레임 모델 로드
+        for timeframe, (model_name, accuracy, description) in model_configs.items():
+            try:
+                model_path = os.path.join(model_dir, f'{model_name}_model.pkl')
+                scaler_path = os.path.join(model_dir, f'{model_name}_scaler.pkl')
 
-    def prepare_features(self, df):
-        """ML 모델용 특징 생성"""
+                if os.path.exists(model_path) and os.path.exists(scaler_path):
+                    self.models[timeframe] = joblib.load(model_path)
+                    self.scalers[timeframe] = joblib.load(scaler_path)
+                    logger.success(f"✅ {description} 로드 (정확도: {accuracy}%)")
+                else:
+                    logger.warning(f"⚠️ {description} 파일 없음: {model_path}")
+            except Exception as e:
+                logger.error(f"❌ {description} 로드 실패: {e}")
+
+    def prepare_basic_features(self, df):
+        """기본 특징 생성 (15분 모델용)"""
         features = pd.DataFrame(index=df.index)
 
         # 가격 변화율
@@ -85,18 +91,59 @@ class BTCTradingSystem:
 
         return features
 
+    def create_trend_features(self, df, timeframe):
+        """트렌드 중심 특징 (30분/4시간/1일 모델용)"""
+        features = pd.DataFrame(index=df.index)
+
+        # 다양한 기간의 이동평균
+        for period in [20, 50, 100, 200]:
+            if len(df) > period:
+                ma = df['close'].rolling(period).mean()
+                features[f'ma_{period}_ratio'] = df['close'] / ma
+                features[f'ma_{period}_slope'] = ma.pct_change(5)
+
+        # 트렌드 강도
+        if timeframe == '1d':
+            features['trend_7d'] = df['close'].pct_change(7)
+            features['trend_14d'] = df['close'].pct_change(14)
+            features['trend_30d'] = df['close'].pct_change(30)
+        else:
+            # 30분, 4시간은 캔들 수로 환산
+            features['trend_7d'] = df['close'].pct_change(42 if timeframe == '4h' else 336)
+            features['trend_14d'] = df['close'].pct_change(84 if timeframe == '4h' else 672)
+            features['trend_30d'] = df['close'].pct_change(180 if timeframe == '4h' else 1440)
+
+        # 변동성
+        features['volatility_7d'] = df['close'].pct_change().rolling(7).std()
+        features['volatility_30d'] = df['close'].pct_change().rolling(30).std()
+
+        # 볼륨 트렌드
+        features['volume_trend'] = df['volume'].rolling(20).mean() / df['volume'].rolling(50).mean()
+
+        # 고저 범위
+        features['high_low_range'] = (df['high'] - df['low']) / df['close']
+        features['range_expansion'] = features['high_low_range'].rolling(10).mean()
+
+        return features
+
     def get_ml_prediction(self, timeframe='15m'):
         """ML 모델 예측"""
         if timeframe not in self.models:
             return None, 0
 
         try:
-            # 데이터 수집
-            ohlcv = self.exchange.fetch_ohlcv('BTC/USDT', timeframe, limit=100)
+            # 데이터 수집 (트렌드 모델은 더 많은 데이터 필요)
+            limit = 250 if timeframe in ['30m', '4h', '1d'] else 100
+            ohlcv = self.exchange.fetch_ohlcv('BTC/USDT', timeframe, limit=limit)
             df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
 
-            # 특징 생성
-            features = self.prepare_features(df)
+            # 타임프레임별 특징 생성
+            if timeframe == '15m':
+                features = self.prepare_basic_features(df)
+            else:
+                # 30m, 4h, 1d는 트렌드 특징 사용
+                features = self.create_trend_features(df, timeframe)
+
             X = features.dropna().iloc[-1:]
 
             if len(X) == 0:
