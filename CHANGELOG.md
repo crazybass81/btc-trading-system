@@ -1,5 +1,42 @@
 # 📝 CHANGELOG
 
+## [2.0.0] - 2024-12-10
+
+### 🎉 Major Release: Directional Prediction System
+
+### ✨ Added
+- **방향성 예측 전환**: UP/DOWN 이진 분류로 전환 (NEUTRAL 제거)
+- **8가지 거래 전략 구현**:
+  - Trend Following (추세 추종)
+  - Breakout (레벨 돌파)
+  - Volume Based (거래량 기반)
+  - Volatility (변동성)
+  - Mean Reversion (평균 회귀)
+  - Pattern Recognition (패턴 인식)
+  - Momentum (모멘텀)
+  - Sentiment (시장 심리)
+- **대규모 모델 테스트**: 160+ 모델 훈련 및 비교
+- **최고 성능 모델 선별**: 60%+ 정확도 모델만 보관
+
+### 🔧 Changed
+- **예측 방식 개선**: 3-class → 2-class classification
+- **모델 구조**: 전략별 독립 모델 구현
+- **성능 기준**: 고신뢰도 정확도 중심 평가
+- **모델 파일 구조**: 전략_타임프레임_모델타입 명명 규칙
+
+### 🐛 Fixed
+- **NEUTRAL 편향 문제 해결**: 70% NEUTRAL 예측 문제 수정
+- **가짜 정확도 문제**: 실제 예측 능력 검증
+- **임계값 최적화**: 타임프레임별 적절한 임계값 적용
+
+### 📊 Performance
+- **30분 Breakout**: 80.5% 정확도 (최고 성능)
+- **30분 Trend Following**: 80.1% 정확도
+- **4시간 Trend Following**: 77.8% 정확도
+- **15분 Trend Following**: 75.7% 정확도
+
+---
+
 ## [1.1.0] - 2024-12-10
 
 ### 🎉 Major Release: Multi-Timeframe Integration
