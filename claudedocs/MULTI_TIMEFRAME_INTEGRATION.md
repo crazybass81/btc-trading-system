@@ -12,7 +12,7 @@ Integrate all validated timeframe models (15m, 30m, 4h, 1d) into the MCP server 
 | Timeframe | Accuracy | Status | File Location |
 |-----------|----------|--------|---------------|
 | **15분 (15m)** | 80.4% | ✅ Working | `models/main_15m_model.pkl` |
-| **30분 (30m)** | 72.1% | ❌ Feature Mismatch | `models/main_30m_model.pkl` |
+| **30분 (30m)** | 72.1% | ✅ Fixed & Working | `models/main_30m_model.pkl` |
 | **4시간 (4h)** | 78.6% | ✅ Working | `models/trend_4h_model.pkl` |
 | **1일 (1d)** | 75.0% | ✅ Working | `models/trend_1d_model.pkl` |
 
@@ -81,50 +81,37 @@ model_configs = {
 
 ---
 
-## ⚠️ Known Issues
+## ✅ Fixed Issues (2024-12-10)
 
-### 30분 (30m) Model - Feature Mismatch
+### 30분 (30m) Model - Feature Mismatch [FIXED]
 
-**Problem:**
-- Model expects 30 features (trained with SelectKBest from enhanced_features)
-- Current code generates 16 trend features
-- Feature names don't match training data
+**Previous Problem:**
+- Model expected 30 features but got 16
+- Feature names didn't match training data
 
-**Root Cause:**
-- 30m model was trained using `enhanced_features()` + `SelectKBest(k=30)`
-- Selected feature names were not saved during training
-- Cannot reproduce exact feature set without retraining
+**Solution Implemented:**
+- Created `create_30m_enhanced_features()` function in `core/main.py`
+- Loads exact 30 features from saved `advanced_30m_features.pkl`
+- Features include: return rates, volume changes, RSI, MACD, Bollinger Bands, ATR, patterns
+- Modified `get_ml_prediction()` to route 30m to enhanced features
 
-**Impact:**
-- 30m predictions return None
-- `btc_get_signal_by_timeframe("30m")` fails
-- Multi-timeframe analysis shows 3/4 results
-
-**Workaround Options:**
-
-1. **Use 3 Models (Current Recommendation)**
-   - Keep 15m, 4h, 1d operational
-   - Remove 30m from documentation
-   - Still covers short-term, long-term, and daily analysis
-
-2. **Retrain 30m Model**
-   - Use `create_trend_features()` for training
-   - Ensure feature generation matches
-   - Save feature names with model
-   - ~1 hour required
+**Result:**
+- ✅ All 4 models now working correctly
+- 30m model produces predictions with 72.1% accuracy
+- Multi-timeframe analysis shows 4/4 results
 
 ---
 
 ## 🧪 Test Results
 
 ```bash
-15M Model: ✅ Signal: NEUTRAL, Confidence: 70.0%
-30M Model: ❌ Failed (feature mismatch)
+15M Model: ✅ Signal: NEUTRAL, Confidence: 68.3%
+30M Model: ✅ Signal: NEUTRAL, Confidence: 36.8%
 4H Model:  ✅ Signal: NEUTRAL, Confidence: 76.1%
 1D Model:  ✅ Signal: NEUTRAL, Confidence: 45.3%
 ```
 
-**Working Timeframes: 3/4 (75%)**
+**Working Timeframes: 4/4 (100%)**
 
 ---
 
