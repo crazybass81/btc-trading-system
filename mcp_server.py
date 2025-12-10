@@ -130,7 +130,7 @@ def btc_get_trading_signal() -> Dict[str, Any]:
         # 포지션 제안 생성
         position_advice = None
         if action == "TRADE" and tech:
-            if signal == "LONG":
+            if signal == "UP":
                 position_advice = {
                     "type": "LONG",
                     "entry": tech['current_price'],
@@ -138,7 +138,7 @@ def btc_get_trading_signal() -> Dict[str, Any]:
                     "take_profit": round(tech['current_price'] * 1.03, 2),
                     "risk_reward": "1:1.5"
                 }
-            elif signal == "SHORT":
+            elif signal == "DOWN":
                 position_advice = {
                     "type": "SHORT",
                     "entry": tech['current_price'],
@@ -246,7 +246,7 @@ def btc_check_trade_conditions() -> Dict[str, Any]:
 
         # 체크리스트 생성
         checklist = {
-            "signal_clarity": "✅" if signal in ["LONG", "SHORT"] else "❌",
+            "signal_clarity": "✅" if signal in ["UP", "DOWN"] else "❌",
             "confidence_above_70": "✅" if confidence >= 70 else "❌",
             "rsi_in_range": "✅" if tech and 30 <= tech['rsi'] <= 70 else "⚠️",
             "risk_management": "✅ Stop loss -2%, Take profit +3%",
@@ -256,7 +256,7 @@ def btc_check_trade_conditions() -> Dict[str, Any]:
 
         # 거래 가능 여부 판단
         can_trade = (
-            signal in ["LONG", "SHORT"] and
+            signal in ["UP", "DOWN"] and
             confidence >= 70
         )
 
@@ -361,10 +361,10 @@ def btc_get_signal_by_timeframe(timeframe: str = "15m") -> Dict[str, Any]:
 
     # 타임프레임 검증
     valid_timeframes = {
-        '15m': ('15-minute', 80.4, '단기 트레이딩'),
-        '30m': ('30-minute', 72.1, '중기 트레이딩'),
-        '4h': ('4-hour', 78.6, '장기 추세'),
-        '1d': ('1-day', 75.0, '일봉 분석')
+        '15m': ('15-minute', 75.7, '단기 트레이딩'),
+        '30m': ('30-minute', 80.5, '중기 트레이딩'),
+        '1h': ('1-hour', 67.9, '중장기 트레이딩'),
+        '4h': ('4-hour', 77.8, '장기 추세')
     }
 
     if timeframe not in valid_timeframes:
@@ -393,8 +393,8 @@ def btc_get_signal_by_timeframe(timeframe: str = "15m") -> Dict[str, Any]:
 
         # 포지션 제안 (TRADE 신호일 때만)
         position_advice = None
-        if action == "TRADE" and tech and signal in ["LONG", "SHORT"]:
-            if signal == "LONG":
+        if action == "TRADE" and tech and signal in ["UP", "DOWN"]:
+            if signal == "UP":
                 position_advice = {
                     "type": "LONG",
                     "entry": tech['current_price'],
@@ -402,7 +402,7 @@ def btc_get_signal_by_timeframe(timeframe: str = "15m") -> Dict[str, Any]:
                     "take_profit": round(tech['current_price'] * 1.03, 2),
                     "risk_reward": "1:1.5"
                 }
-            elif signal == "SHORT":
+            elif signal == "DOWN":
                 position_advice = {
                     "type": "SHORT",
                     "entry": tech['current_price'],
@@ -454,10 +454,10 @@ def btc_get_all_timeframes() -> Dict[str, Any]:
     system = get_system()
 
     timeframes = {
-        '15m': ('15-minute', 80.4, '단기'),
-        '30m': ('30-minute', 72.1, '중기'),
-        '4h': ('4-hour', 78.6, '장기'),
-        '1d': ('1-day', 75.0, '초장기')
+        '15m': ('15-minute', 75.7, '단기'),
+        '30m': ('30-minute', 80.5, '중기'),
+        '1h': ('1-hour', 67.9, '중장기'),
+        '4h': ('4-hour', 77.8, '장기')
     }
 
     signals = {}
@@ -478,10 +478,10 @@ def btc_get_all_timeframes() -> Dict[str, Any]:
                     "description": desc
                 }
 
-                # 신호 카운트
-                if signal == "LONG":
+                # 신호 카운트 (UP/DOWN 신호로 변경)
+                if signal == "UP":
                     long_count += 1
-                elif signal == "SHORT":
+                elif signal == "DOWN":
                     short_count += 1
                 else:
                     neutral_count += 1
@@ -540,10 +540,10 @@ def btc_compare_timeframes() -> Dict[str, Any]:
     system = get_system()
 
     timeframes = {
-        '15m': ('Short-term (15m)', 80.4, '스캘핑/데이트레이딩'),
-        '30m': ('Mid-term (30m)', 72.1, '스윙 트레이딩'),
-        '4h': ('Long-term (4h)', 78.6, '포지션 트레이딩'),
-        '1d': ('Trend (1d)', 75.0, '장기 투자')
+        '15m': ('Short-term (15m)', 75.7, '스캘핑/데이트레이딩'),
+        '30m': ('Mid-term (30m)', 80.5, '스윙 트레이딩'),
+        '1h': ('Mid-Long (1h)', 67.9, '중장기 트레이딩'),
+        '4h': ('Long-term (4h)', 77.8, '포지션 트레이딩')
     }
 
     comparison = []
@@ -588,14 +588,14 @@ def btc_compare_timeframes() -> Dict[str, Any]:
                 alignment_score = 100
                 recommendation = f"🎯 All timeframes agree on {signals_list[0]}. High confidence trade setup."
             # 대부분 같은 방향
-            elif signals_list.count("LONG") >= 3:
+            elif signals_list.count("UP") >= 3:
                 alignment = "Strong Bullish"
                 alignment_score = 75
-                recommendation = "📈 Multiple timeframes show LONG bias. Consider bullish position."
-            elif signals_list.count("SHORT") >= 3:
+                recommendation = "📈 Multiple timeframes show UP bias. Consider bullish position."
+            elif signals_list.count("DOWN") >= 3:
                 alignment = "Strong Bearish"
                 alignment_score = 75
-                recommendation = "📉 Multiple timeframes show SHORT bias. Consider bearish position."
+                recommendation = "📉 Multiple timeframes show DOWN bias. Consider bearish position."
             # 혼재
             else:
                 alignment = "Mixed Signals"
@@ -648,36 +648,36 @@ def btc_get_model_info() -> Dict[str, Any]:
     # 모든 타임프레임 모델 정보
     models_info = {
         "15m": {
-            "name": "15-minute Model",
-            "accuracy": "80.4%",
+            "name": "15-minute Trend Following",
+            "accuracy": "75.7%",
             "description": "단기 트레이딩 (스캘핑/데이트레이딩)",
             "use_case": "Quick entries/exits, scalping",
             "holding_time": "15 min - 4 hours",
             "best_for": "Day traders, scalpers"
         },
         "30m": {
-            "name": "30-minute Model",
-            "accuracy": "72.1%",
-            "description": "중기 트레이딩 (스윙)",
-            "use_case": "Swing trading, intraday positions",
+            "name": "30-minute Breakout",
+            "accuracy": "80.5%",
+            "description": "중기 트레이딩 (스윙) - 최고 성능",
+            "use_case": "Breakout trading, intraday positions",
             "holding_time": "1 - 8 hours",
             "best_for": "Swing traders"
         },
+        "1h": {
+            "name": "1-hour Trend Following",
+            "accuracy": "67.9%",
+            "description": "중장기 트레이딩",
+            "use_case": "Medium-term trend following",
+            "holding_time": "4 - 12 hours",
+            "best_for": "Medium-term traders"
+        },
         "4h": {
-            "name": "4-hour Trend Model",
-            "accuracy": "78.6%",
+            "name": "4-hour Trend Following",
+            "accuracy": "77.8%",
             "description": "장기 추세 (포지션 트레이딩)",
             "use_case": "Trend following, position trading",
             "holding_time": "1 - 7 days",
             "best_for": "Position traders, trend followers"
-        },
-        "1d": {
-            "name": "1-day Trend Model",
-            "accuracy": "75.0%",
-            "description": "일봉 분석 (장기 투자)",
-            "use_case": "Long-term investing, major trend identification",
-            "holding_time": "1 week - 1 month",
-            "best_for": "Investors, long-term holders"
         }
     }
 
@@ -729,10 +729,10 @@ def main():
     print("🚀 BTC Multi-Timeframe Trading System MCP Server")
     print("=" * 60)
     print("📊 Available Models:")
-    print("  • 15분 모델: 80.4% 정확도 (단기 트레이딩)")
-    print("  • 30분 모델: 72.1% 정확도 (중기 트레이딩)")
-    print("  • 4시간 모델: 78.6% 정확도 (장기 추세)")
-    print("  • 1일 모델: 75.0% 정확도 (일봉 분석)")
+    print("  • 15분 모델: 75.7% 정확도 (단기 추세)")
+    print("  • 30분 모델: 80.5% 정확도 (Breakout - 최고 성능)")
+    print("  • 1시간 모델: 67.9% 정확도 (중기 추세)")
+    print("  • 4시간 모델: 77.8% 정확도 (장기 추세)")
     print("-" * 60)
     print("🔧 Available Tools:")
     print("  • btc_get_trading_signal() - 15분 신호 (기본)")
