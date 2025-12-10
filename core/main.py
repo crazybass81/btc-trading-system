@@ -31,10 +31,10 @@ class BTCTradingSystem:
 
         # 모델 설정: (파일명, 정확도, 설명)
         model_configs = {
-            '15m': ('main_15m', 80.4, '15분 모델 (단기 트레이딩)'),
-            '30m': ('main_30m', 72.1, '30분 모델 (중기 트레이딩)'),
-            '4h': ('trend_4h', 78.6, '4시간 트렌드 모델 (장기 추세)'),
-            '1d': ('trend_1d', 75.0, '1일 트렌드 모델 (일봉 분석)')
+            '15m': ('trend_following_15m_gradientboost', 75.7, '15분 Trend Following (단기 추세)'),
+            '30m': ('breakout_30m_neuralnet', 80.5, '30분 Breakout (최고 성능)'),
+            '1h': ('trend_following_1h_gradientboost', 67.9, '1시간 Trend Following (중기 추세)'),
+            '4h': ('trend_following_4h_neuralnet', 77.8, '4시간 Trend Following (장기 추세)')
         }
 
         # 각 타임프레임 모델 로드
@@ -158,40 +158,94 @@ class BTCTradingSystem:
 
         return features[selected_features].fillna(0)
 
-    def create_trend_features(self, df, timeframe):
-        """트렌드 중심 특징 (30분/4시간/1일 모델용)"""
+    def create_30m_enhanced_features(self, df):
+        """30분 Breakout 모델용 특별한 특징 (15개)"""
         features = pd.DataFrame(index=df.index)
 
-        # 다양한 기간의 이동평균
-        for period in [20, 50, 100, 200]:
-            if len(df) > period:
-                ma = df['close'].rolling(period).mean()
-                features[f'ma_{period}_ratio'] = df['close'] / ma
-                features[f'ma_{period}_slope'] = ma.pct_change(5)
+        # 가격 레벨 관련 특징 (9개)
+        for period in [20, 50, 100]:
+            features[f'high_ratio_{period}'] = df['high'] / (df['high'].rolling(period).max() + 1e-10)
+            features[f'low_ratio_{period}'] = df['low'] / (df['low'].rolling(period).min() + 1e-10)
+            features[f'range_position_{period}'] = (df['close'] - df['low'].rolling(period).min()) / \
+                                                   (df['high'].rolling(period).max() - df['low'].rolling(period).min() + 1e-10)
 
-        # 트렌드 강도
-        if timeframe == '1d':
-            features['trend_7d'] = df['close'].pct_change(7)
-            features['trend_14d'] = df['close'].pct_change(14)
-            features['trend_30d'] = df['close'].pct_change(30)
-        else:
-            # 30분, 4시간은 캔들 수로 환산
-            features['trend_7d'] = df['close'].pct_change(42 if timeframe == '4h' else 336)
-            features['trend_14d'] = df['close'].pct_change(84 if timeframe == '4h' else 672)
-            features['trend_30d'] = df['close'].pct_change(180 if timeframe == '4h' else 1440)
+        # 거래량 특징 (2개)
+        features['volume_spike'] = df['volume'] / (df['volume'].rolling(20).mean() + 1e-10)
+        features['volume_breakout'] = (df['volume'] > df['volume'].rolling(20).quantile(0.8)).astype(int)
 
-        # 변동성
-        features['volatility_7d'] = df['close'].pct_change().rolling(7).std()
-        features['volatility_30d'] = df['close'].pct_change().rolling(30).std()
+        # ATR (2개)
+        high_low = df['high'] - df['low']
+        high_close = abs(df['high'] - df['close'].shift())
+        low_close = abs(df['low'] - df['close'].shift())
+        tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
 
-        # 볼륨 트렌드
-        features['volume_trend'] = df['volume'].rolling(20).mean() / df['volume'].rolling(50).mean()
+        features['atr_10'] = tr.rolling(10).mean() / (df['close'] + 1e-10)
+        features['atr_20'] = tr.rolling(20).mean() / (df['close'] + 1e-10)
 
-        # 고저 범위
-        features['high_low_range'] = (df['high'] - df['low']) / df['close']
-        features['range_expansion'] = features['high_low_range'].rolling(10).mean()
+        # 신고가/신저가 (2개)
+        features['new_high_20'] = (df['high'] == df['high'].rolling(20).max()).astype(int)
+        features['new_low_20'] = (df['low'] == df['low'].rolling(20).min()).astype(int)
 
-        return features
+        # 정확히 15개 특징 반환
+        selected_features = [
+            'high_ratio_20', 'low_ratio_20', 'range_position_20',
+            'high_ratio_50', 'low_ratio_50', 'range_position_50',
+            'high_ratio_100', 'low_ratio_100', 'range_position_100',
+            'volume_spike', 'volume_breakout', 'atr_10', 'atr_20',
+            'new_high_20', 'new_low_20'
+        ]
+
+        return features[selected_features].fillna(0)
+
+    def create_trend_features(self, df, timeframe):
+        """트렌드 추종 모델용 특징 (15m/1h/4h용 - 15개 특징)"""
+        features = pd.DataFrame(index=df.index)
+
+        # 이동평균 비율과 기울기 (10개)
+        for period in [10, 20, 50, 100, 200]:
+            ma = df['close'].rolling(period).mean()
+            features[f'ma_{period}_ratio'] = df['close'] / (ma + 1e-10)
+            features[f'ma_{period}_slope'] = ma.pct_change(5)
+
+        # MA 정렬 (1개)
+        ma_10 = df['close'].rolling(10).mean()
+        ma_20 = df['close'].rolling(20).mean()
+        ma_50 = df['close'].rolling(50).mean()
+        features['ma_alignment'] = ((ma_10 > ma_20) & (ma_20 > ma_50)).astype(int)
+
+        # MACD (3개)
+        exp1 = df['close'].ewm(span=12, adjust=False).mean()
+        exp2 = df['close'].ewm(span=26, adjust=False).mean()
+        features['macd'] = exp1 - exp2
+        features['macd_signal'] = features['macd'].ewm(span=9, adjust=False).mean()
+        features['macd_histogram'] = features['macd'] - features['macd_signal']
+
+        # ADX (1개)
+        high_low = df['high'] - df['low']
+        high_close = abs(df['high'] - df['close'].shift())
+        low_close = abs(df['low'] - df['close'].shift())
+        tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+        atr = tr.rolling(14).mean()
+
+        # 간단한 ADX 계산
+        plus_dm = df['high'].diff()
+        minus_dm = -df['low'].diff()
+        plus_dm[plus_dm < 0] = 0
+        minus_dm[minus_dm < 0] = 0
+
+        plus_di = 100 * (plus_dm.rolling(14).mean() / (atr + 1e-10))
+        minus_di = 100 * (minus_dm.rolling(14).mean() / (atr + 1e-10))
+        features['adx'] = 100 * abs(plus_di - minus_di) / (plus_di + minus_di + 1e-10)
+
+        # 정확히 15개 특징 반환
+        selected_features = [
+            'ma_10_ratio', 'ma_10_slope', 'ma_20_ratio', 'ma_20_slope',
+            'ma_50_ratio', 'ma_50_slope', 'ma_100_ratio', 'ma_100_slope',
+            'ma_200_ratio', 'ma_200_slope', 'ma_alignment',
+            'macd', 'macd_signal', 'macd_histogram', 'adx'
+        ]
+
+        return features[selected_features].fillna(0)
 
     def get_ml_prediction(self, timeframe='15m'):
         """ML 모델 예측"""
@@ -205,13 +259,11 @@ class BTCTradingSystem:
             df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
 
             # 타임프레임별 특징 생성
-            if timeframe == '15m':
-                features = self.prepare_basic_features(df)
-            elif timeframe == '30m':
-                # 30m은 enhanced features 사용
+            if timeframe == '30m':
+                # 30m Breakout 모델은 특별한 features 사용
                 features = self.create_30m_enhanced_features(df)
             else:
-                # 4h, 1d는 트렌드 특징 사용
+                # 15m, 1h, 4h는 모두 트렌드 추종 특징 사용
                 features = self.create_trend_features(df, timeframe)
 
             X = features.dropna().iloc[-1:]
@@ -245,8 +297,8 @@ class BTCTradingSystem:
                 pred = model_dict.predict(X_scaled)[0]
                 confidence = max(model_dict.predict_proba(X_scaled)[0]) * 100
 
-            # 신호 매핑
-            signal_map = {0: 'SHORT', 1: 'NEUTRAL', 2: 'LONG'}
+            # 신호 매핑 (이진 분류: UP/DOWN)
+            signal_map = {0: 'DOWN', 1: 'UP'}
             return signal_map[pred], confidence
 
         except Exception as e:
