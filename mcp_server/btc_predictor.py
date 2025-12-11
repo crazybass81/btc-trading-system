@@ -132,12 +132,35 @@ class BTCPredictor:
 
             prediction_prob = min(max(prediction_prob, 0.3), 0.95)
 
+            # UP 모델은 UP 신호만, DOWN 모델은 DOWN 신호만 반환
+            if direction.upper() == 'UP':
+                # UP 모델: 확률이 높으면 UP 신호, 낮으면 NO_SIGNAL
+                if prediction_prob > 0.5:
+                    signal = 'UP'
+                    signal_strength = prediction_prob
+                else:
+                    signal = 'NO_SIGNAL'
+                    signal_strength = 1 - prediction_prob
+            else:  # DOWN 모델
+                # DOWN 모델: 확률이 높으면 DOWN 신호, 낮으면 NO_SIGNAL
+                if prediction_prob > 0.5:
+                    signal = 'DOWN'
+                    signal_strength = prediction_prob
+                else:
+                    signal = 'NO_SIGNAL'
+                    signal_strength = 1 - prediction_prob
+
+            # 실질적 신뢰도 계산 (예측 확률 × 모델 정확도)
+            real_confidence = prediction_prob * (config['accuracy'] / 100)
+
             return {
                 'timeframe': timeframe,
                 'direction': direction.upper(),
-                'prediction': 'UP' if prediction_prob > 0.5 else 'DOWN',
+                'signal': signal,
+                'signal_strength': float(signal_strength),
                 'confidence': float(prediction_prob),
                 'model_accuracy': config['accuracy'],
+                'real_confidence': float(real_confidence),  # 실질적 신뢰도
                 'current_price': float(df['close'].iloc[-1]),
                 'timestamp': datetime.now().isoformat()
             }
@@ -174,43 +197,79 @@ class BTCPredictor:
 
         up_score = 0
         down_score = 0
+        real_up_score = 0  # 실질적 신뢰도 기반 점수
+        real_down_score = 0  # 실질적 신뢰도 기반 점수
         total_weight = 0
+        active_signals = []
 
         for key, pred in all_predictions.items():
             if 'error' in pred:
                 continue
 
             timeframe = pred['timeframe']
-            weight = weights.get(timeframe, 1.0) * (pred['model_accuracy'] / 100)
+            weight = weights.get(timeframe, 1.0)
 
-            if pred['prediction'] == 'UP':
-                up_score += weight
-            else:
-                down_score += weight
+            # signal 필드가 있으면 사용, 없으면 prediction 필드 사용 (하위 호환성)
+            signal = pred.get('signal', pred.get('prediction'))
 
-            total_weight += weight
+            # 실질적 신뢰도 사용 (있으면)
+            real_conf = pred.get('real_confidence', pred.get('confidence', 0.5))
+
+            if signal == 'UP':
+                up_score += weight * pred.get('signal_strength', pred.get('confidence', 0.5))
+                real_up_score += weight * real_conf
+                active_signals.append(f"{timeframe}_UP ({real_conf:.1%})")
+            elif signal == 'DOWN':
+                down_score += weight * pred.get('signal_strength', pred.get('confidence', 0.5))
+                real_down_score += weight * real_conf
+                active_signals.append(f"{timeframe}_DOWN ({real_conf:.1%})")
+            # NO_SIGNAL은 무시
+
+            if signal != 'NO_SIGNAL':
+                total_weight += weight
 
         if total_weight == 0:
-            return {'error': 'No valid predictions available'}
+            return {
+                'consensus': 'NO_SIGNAL',
+                'confidence': 0.0,
+                'up_score': 0.0,
+                'down_score': 0.0,
+                'active_signals': [],
+                'total_models': len(self.models),
+                'timestamp': datetime.now().isoformat()
+            }
 
-        up_probability = up_score / total_weight
-        down_probability = down_score / total_weight
+        # 정규화된 점수
+        normalized_up = up_score / total_weight
+        normalized_down = down_score / total_weight
 
-        if up_probability > 0.55:
+        # 실질적 신뢰도 기반 점수
+        real_normalized_up = real_up_score / total_weight
+        real_normalized_down = real_down_score / total_weight
+
+        # 실질적 신뢰도 기반으로 합의 결정
+        if real_normalized_up > real_normalized_down and real_normalized_up > 0.5:
             consensus = 'UP'
-            confidence = up_probability
-        elif down_probability > 0.55:
+            confidence = normalized_up
+            real_confidence = real_normalized_up
+        elif real_normalized_down > real_normalized_up and real_normalized_down > 0.5:
             consensus = 'DOWN'
-            confidence = down_probability
+            confidence = normalized_down
+            real_confidence = real_normalized_down
         else:
             consensus = 'NEUTRAL'
-            confidence = max(up_probability, down_probability)
+            confidence = max(normalized_up, normalized_down)
+            real_confidence = max(real_normalized_up, real_normalized_down)
 
         return {
             'consensus': consensus,
             'confidence': float(confidence),
-            'up_probability': float(up_probability),
-            'down_probability': float(down_probability),
+            'real_confidence': float(real_confidence),  # 실질적 신뢰도
+            'up_score': float(normalized_up),
+            'down_score': float(normalized_down),
+            'real_up_score': float(real_normalized_up),  # 실질적 UP 점수
+            'real_down_score': float(real_normalized_down),  # 실질적 DOWN 점수
+            'active_signals': active_signals,
             'total_models': len(self.models),
             'timestamp': datetime.now().isoformat()
         }

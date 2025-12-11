@@ -116,22 +116,39 @@ def format_prediction_markdown(prediction: Dict) -> str:
     if 'error' in prediction:
         return f"❌ **Error**: {prediction['error']}"
 
-    # Choose emoji based on prediction
-    direction_emoji = "📈" if prediction['prediction'] == 'UP' else "📉"
+    # Choose emoji based on signal
+    signal = prediction.get('signal', prediction.get('prediction', 'NO_SIGNAL'))
+    if signal == 'UP':
+        direction_emoji = "📈"
+        signal_text = "**UP Signal**"
+    elif signal == 'DOWN':
+        direction_emoji = "📉"
+        signal_text = "**DOWN Signal**"
+    else:
+        direction_emoji = "⏸️"
+        signal_text = "**No Signal**"
+
     confidence_level = "High" if prediction['confidence'] > 0.75 else "Medium" if prediction['confidence'] > 0.6 else "Low"
 
-    return f"""## {direction_emoji} BTC {prediction['timeframe']} {prediction['direction']} Prediction
+    # 실질적 신뢰도 계산 및 표시
+    real_conf = prediction.get('real_confidence', prediction['confidence'] * prediction['model_accuracy'] / 100)
+    real_conf_level = "High" if real_conf > 0.6 else "Medium" if real_conf > 0.45 else "Low"
 
-**Prediction**: {prediction['prediction']}
-**Confidence**: {prediction['confidence']:.1%} ({confidence_level})
+    return f"""## {direction_emoji} BTC {prediction['timeframe']} {prediction['direction']} Model
+
+**Signal**: {signal_text}
+**Signal Strength**: {prediction.get('signal_strength', prediction['confidence']):.1%}
+**Prediction Confidence**: {prediction['confidence']:.1%} ({confidence_level})
 **Model Accuracy**: {prediction['model_accuracy']}%
+**Real Confidence**: {real_conf:.1%} ({real_conf_level}) ⭐
 **Current Price**: ${prediction['current_price']:,.2f}
 **Timestamp**: {prediction['timestamp']}
 
 ### Interpretation
-- The model predicts BTC will go **{prediction['prediction']}** in the next {prediction['timeframe']} candle
-- This prediction has a {prediction['confidence']:.1%} confidence level
-- The model has historically been {prediction['model_accuracy']}% accurate"""
+- The {prediction['direction']} model is {"generating a" if signal != "NO_SIGNAL" else "not generating any"} {signal_text.lower()}
+- Signal strength: {prediction.get('signal_strength', prediction['confidence']):.1%}
+- **Real confidence** (prediction × accuracy): {real_conf:.1%}
+- This means the actual probability of this prediction being correct is approximately **{real_conf:.1%}**"""
 
 
 def format_consensus_markdown(consensus: Dict) -> str:
@@ -146,6 +163,9 @@ def format_consensus_markdown(consensus: Dict) -> str:
     elif consensus['consensus'] == 'DOWN':
         emoji = "🔻"
         action = "Bearish"
+    elif consensus['consensus'] == 'NO_SIGNAL':
+        emoji = "⏸️"
+        action = "No Active Signals"
     else:
         emoji = "⚖️"
         action = "Neutral"
@@ -153,9 +173,11 @@ def format_consensus_markdown(consensus: Dict) -> str:
     return f"""## {emoji} BTC Market Consensus: {action}
 
 **Consensus Direction**: {consensus['consensus']}
-**Confidence**: {consensus['confidence']:.1%}
-**UP Probability**: {consensus['up_probability']:.1%}
-**DOWN Probability**: {consensus['down_probability']:.1%}
+**Prediction Confidence**: {consensus['confidence']:.1%}
+**Real Confidence**: {consensus.get('real_confidence', 0):.1%} ⭐
+**UP Score**: {consensus.get('up_score', consensus.get('up_probability', 0)):.1%} (Real: {consensus.get('real_up_score', 0):.1%})
+**DOWN Score**: {consensus.get('down_score', consensus.get('down_probability', 0)):.1%} (Real: {consensus.get('real_down_score', 0):.1%})
+**Active Signals**: {', '.join(consensus.get('active_signals', [])) if consensus.get('active_signals') else 'None'}
 **Total Models**: {consensus['total_models']}
 **Timestamp**: {consensus['timestamp']}
 
@@ -164,17 +186,20 @@ def format_consensus_markdown(consensus: Dict) -> str:
 
 
 def get_signal_strength_analysis(consensus: Dict) -> str:
-    """Analyze and describe signal strength"""
+    """Analyze and describe signal strength based on real confidence"""
+    # Use real confidence if available, otherwise fall back to regular confidence
+    real_confidence = consensus.get('real_confidence', consensus['confidence'])
     confidence = consensus['confidence']
 
-    if confidence > 0.75:
-        return "✅ **Strong Signal** - High confidence across multiple timeframes"
-    elif confidence > 0.65:
-        return "🟡 **Moderate Signal** - Good agreement between models"
-    elif confidence > 0.55:
-        return "🟠 **Weak Signal** - Some disagreement between models"
+    # 실질적 신뢰도 기반 분석
+    if real_confidence > 0.6:
+        return f"✅ **Strong Signal** - Real confidence {real_confidence:.1%} (>60% actual probability)"
+    elif real_confidence > 0.5:
+        return f"🟡 **Moderate Signal** - Real confidence {real_confidence:.1%} (50-60% actual probability)"
+    elif real_confidence > 0.4:
+        return f"🟠 **Weak Signal** - Real confidence {real_confidence:.1%} (40-50% actual probability)"
     else:
-        return "⚪ **No Clear Signal** - Models are undecided"
+        return f"⚪ **No Clear Signal** - Real confidence {real_confidence:.1%} (<40% actual probability)"
 
 
 def format_market_analysis_markdown(all_predictions: Dict, consensus: Dict) -> str:
