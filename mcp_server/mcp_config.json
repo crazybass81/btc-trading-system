@@ -1,0 +1,145 @@
+{
+  "name": "btc-predictor",
+  "version": "1.0.0",
+  "description": "MCP server for BTC direction prediction using trained ML models",
+  "author": "BTC Trading System",
+  "license": "MIT",
+  "capabilities": {
+    "tools": true,
+    "resources": true,
+    "prompts": false,
+    "sampling": false
+  },
+  "tools": [
+    {
+      "name": "btc_get_prediction",
+      "description": "Get BTC price direction prediction for a specific timeframe and direction",
+      "parameters": {
+        "timeframe": {
+          "type": "string",
+          "enum": ["15m", "30m", "1h", "4h"],
+          "required": true,
+          "description": "Timeframe for prediction"
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["up", "down"],
+          "required": true,
+          "description": "Direction to predict"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["json", "markdown"],
+          "default": "json",
+          "description": "Response format"
+        }
+      }
+    },
+    {
+      "name": "btc_get_consensus",
+      "description": "Get consensus prediction from all BTC models with weighted voting",
+      "parameters": {
+        "format": {
+          "type": "string",
+          "enum": ["json", "markdown"],
+          "default": "json",
+          "description": "Response format"
+        }
+      }
+    },
+    {
+      "name": "btc_analyze_market",
+      "description": "Get comprehensive BTC market analysis with all model predictions",
+      "parameters": {
+        "include_individual": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include individual model predictions"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["json", "markdown"],
+          "default": "markdown",
+          "description": "Response format"
+        }
+      }
+    },
+    {
+      "name": "btc_get_model_info",
+      "description": "Get information about available BTC prediction models and their performance",
+      "parameters": {
+        "format": {
+          "type": "string",
+          "enum": ["json", "markdown"],
+          "default": "json",
+          "description": "Response format"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "uri": "btc://models/overview",
+      "name": "BTC Models Overview",
+      "description": "Overview of all available BTC prediction models",
+      "mimeType": "application/json"
+    },
+    {
+      "uri": "btc://predictions/latest",
+      "name": "Latest BTC Predictions",
+      "description": "Latest predictions from all models",
+      "mimeType": "application/json"
+    }
+  ],
+  "server": {
+    "host": "localhost",
+    "port": 5002,
+    "transport": "stdio",
+    "python": {
+      "module": "mcp_server",
+      "class": "BTCPredictorMCP"
+    }
+  },
+  "models": {
+    "deep_ensemble_1h_up": {
+      "accuracy": 79.6,
+      "timeframe": "1h",
+      "direction": "UP"
+    },
+    "deep_ensemble_1h_down": {
+      "accuracy": 78.7,
+      "timeframe": "1h",
+      "direction": "DOWN"
+    },
+    "deep_ensemble_4h_up": {
+      "accuracy": 75.9,
+      "timeframe": "4h",
+      "direction": "UP"
+    },
+    "deep_ensemble_4h_down": {
+      "accuracy": 74.1,
+      "timeframe": "4h",
+      "direction": "DOWN"
+    },
+    "deep_ensemble_30m_up": {
+      "accuracy": 72.9,
+      "timeframe": "30m",
+      "direction": "UP"
+    },
+    "deep_ensemble_30m_down": {
+      "accuracy": 70.4,
+      "timeframe": "30m",
+      "direction": "DOWN"
+    },
+    "advanced_15m_up": {
+      "accuracy": 65.2,
+      "timeframe": "15m",
+      "direction": "UP"
+    },
+    "deep_ensemble_15m_up": {
+      "accuracy": 62.8,
+      "timeframe": "15m",
+      "direction": "UP"
+    }
+  }
+}

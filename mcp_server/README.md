@@ -2,21 +2,46 @@
 
 LLM이 연결하여 BTC 방향성 예측을 받을 수 있는 MCP (Model Context Protocol) 서버
 
-## 🚀 빠른 시작
+## 🎯 Server Options
+
+### 1. **MCP Protocol Server** (Recommended) - `mcp_server.py`
+Full MCP protocol-compliant implementation using FastMCP framework with proper tool registration and Pydantic validation.
+
+### 2. **REST API Server** (Legacy) - `server.py`
+Flask-based REST API for HTTP integration.
+
+## 🚀 빠른 시작 (MCP Protocol Server)
 
 ### 1. 설치
 ```bash
 pip install -r requirements.txt
+pip install fastmcp pydantic
 ```
 
-### 2. 서버 실행
+### 2. MCP 서버 실행
+```bash
+# MCP Protocol Server (Recommended)
+./run_mcp.sh
+# 또는 직접 실행
+python -m fastmcp run mcp_server.py
+```
+
+### 3. 테스트 (MCP Server)
+```bash
+# MCP server test
+python -c "from mcp_server import btc_get_prediction; print(await btc_get_prediction({'timeframe': '1h', 'direction': 'up'}))"
+```
+
+## 🚀 빠른 시작 (REST API Server - Legacy)
+
+### 1. 서버 실행
 ```bash
 python server.py
 # 또는 포트 지정
 MCP_PORT=5001 python server.py
 ```
 
-### 3. 테스트
+### 2. 테스트
 ```bash
 # 서버 상태 확인
 curl http://localhost:5000/
