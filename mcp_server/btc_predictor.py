@@ -41,16 +41,18 @@ class BTCPredictor:
 
         for config in model_configs:
             try:
-                model_path = f"../models/{config['name']}_model.pkl"
+                # 절대 경로로 모델 찾기
+                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                model_path = os.path.join(base_dir, 'models', f"{config['name']}_model.pkl")
                 if os.path.exists(model_path):
                     model_data = joblib.load(model_path)
                     self.models[f"{config['timeframe']}_{config['direction']}"] = {
                         'model': model_data,
                         'config': config
                     }
-                    print(f"✅ Loaded: {config['name']} ({config['accuracy']}%)")
+                    print(f"✅ Loaded: {config['name']} ({config['accuracy']}%)", file=sys.stderr)
             except Exception as e:
-                print(f"❌ Failed to load {config['name']}: {e}")
+                print(f"❌ Failed to load {config['name']}: {e}", file=sys.stderr)
 
     def create_features(self, df, timeframe):
         """특징 생성 (간소화 버전)"""

@@ -23,8 +23,12 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import the predictor
 from btc_predictor import BTCPredictor
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging to stderr (MCP uses stdout for protocol)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stderr  # Important: MCP uses stdout for JSON-RPC
+)
 logger = logging.getLogger(__name__)
 
 # Initialize MCP server
@@ -466,6 +470,9 @@ if __name__ == "__main__":
         logger.info("  - btc_get_consensus: Get weighted consensus")
         logger.info("  - btc_analyze_market: Comprehensive market analysis")
         logger.info("  - btc_get_model_info: Model performance info")
+
+        # Run FastMCP server (stdio mode for Claude Desktop)
+        mcp.run()
     else:
         logger.error("Failed to start server")
         sys.exit(1)
