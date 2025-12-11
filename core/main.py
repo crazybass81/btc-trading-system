@@ -29,24 +29,38 @@ class BTCTradingSystem:
         """검증된 모델들 로드"""
         model_dir = os.path.join(os.path.dirname(__file__), '..', 'models')
 
-        # 모델 설정: (파일명, 정확도, 설명)
+        # 균형잡힌 모델 설정 (편향 문제 해결)
         model_configs = {
-            '15m': ('trend_following_15m_gradientboost', 75.7, '15분 Trend Following (단기 추세)'),
-            '30m': ('breakout_30m_neuralnet', 80.5, '30분 Breakout (최고 성능)'),
-            '1h': ('trend_following_1h_gradientboost', 67.9, '1시간 Trend Following (중기 추세)'),
-            '4h': ('trend_following_4h_neuralnet', 77.8, '4시간 Trend Following (장기 추세)')
+            '15m': ('balanced_15m_gradientboost', 53.3, '15분 균형 모델 (UP/DOWN 균형)'),
+            '30m': ('balanced_30m_neuralnet', 50.6, '30분 균형 모델 (UP/DOWN 균형)'),
+            '1h': ('balanced_1h_gradientboost', 50.6, '1시간 균형 모델 (UP/DOWN 균형)'),
+            '4h': ('balanced_4h_neuralnet', 56.7, '4시간 균형 모델 (UP/DOWN 균형)')
         }
 
         # 각 타임프레임 모델 로드
         for timeframe, (model_name, accuracy, description) in model_configs.items():
             try:
                 model_path = os.path.join(model_dir, f'{model_name}_model.pkl')
-                scaler_path = os.path.join(model_dir, f'{model_name}_scaler.pkl')
 
-                if os.path.exists(model_path) and os.path.exists(scaler_path):
-                    self.models[timeframe] = joblib.load(model_path)
-                    self.scalers[timeframe] = joblib.load(scaler_path)
-                    logger.success(f"✅ {description} 로드 (정확도: {accuracy}%)")
+                if os.path.exists(model_path):
+                    # 새로운 균형 모델은 모델과 스케일러가 하나의 파일에 저장됨
+                    model_info = joblib.load(model_path)
+
+                    if isinstance(model_info, dict):
+                        # 새 형식 (균형 모델)
+                        self.models[timeframe] = model_info['model']
+                        self.scalers[timeframe] = model_info['scaler']
+                        actual_accuracy = model_info.get('accuracy', accuracy/100) * 100
+                        logger.success(f"✅ {description} 로드 (정확도: {actual_accuracy:.1f}%)")
+                    else:
+                        # 이전 형식 (별도 스케일러 파일)
+                        scaler_path = os.path.join(model_dir, f'{model_name}_scaler.pkl')
+                        if os.path.exists(scaler_path):
+                            self.models[timeframe] = model_info
+                            self.scalers[timeframe] = joblib.load(scaler_path)
+                            logger.success(f"✅ {description} 로드 (정확도: {accuracy}%)")
+                        else:
+                            logger.warning(f"⚠️ {description} 스케일러 없음: {scaler_path}")
                 else:
                     logger.warning(f"⚠️ {description} 파일 없음: {model_path}")
             except Exception as e:
@@ -197,6 +211,59 @@ class BTCTradingSystem:
 
         return features[selected_features].fillna(0)
 
+    def create_enhanced_features(self, df):
+        """균형 모델용 향상된 특징 생성"""
+        features = pd.DataFrame(index=df.index)
+
+        # 가격 변화율
+        for period in [1, 3, 5, 10, 20, 50]:
+            features[f'return_{period}'] = df['close'].pct_change(period)
+
+        # 이동평균
+        for period in [5, 10, 20, 50, 100]:
+            ma = df['close'].rolling(window=period).mean()
+            features[f'ma_{period}_ratio'] = df['close'] / ma - 1
+            features[f'ma_{period}_slope'] = ma.pct_change(5)
+
+        # RSI
+        for period in [7, 14, 21]:
+            delta = df['close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+            rs = gain / loss
+            features[f'rsi_{period}'] = 100 - (100 / (1 + rs))
+
+        # 볼린저 밴드
+        for period in [20, 50]:
+            ma = df['close'].rolling(window=period).mean()
+            std = df['close'].rolling(window=period).std()
+            features[f'bb_{period}_upper'] = (df['close'] - (ma + 2*std)) / df['close']
+            features[f'bb_{period}_lower'] = ((ma - 2*std) - df['close']) / df['close']
+            features[f'bb_{period}_width'] = 4 * std / ma
+
+        # 거래량 지표
+        features['volume_ratio'] = df['volume'] / df['volume'].rolling(window=20).mean()
+        features['volume_trend'] = df['volume'].rolling(window=10).mean().pct_change(5)
+
+        # MACD
+        exp1 = df['close'].ewm(span=12, adjust=False).mean()
+        exp2 = df['close'].ewm(span=26, adjust=False).mean()
+        macd = exp1 - exp2
+        signal = macd.ewm(span=9, adjust=False).mean()
+        features['macd'] = macd / df['close']
+        features['macd_signal'] = signal / df['close']
+        features['macd_hist'] = (macd - signal) / df['close']
+
+        # 변동성
+        features['volatility'] = df['close'].pct_change().rolling(window=20).std()
+        features['high_low_ratio'] = (df['high'] - df['low']) / df['close']
+
+        # 시간 특징
+        features['hour'] = pd.DatetimeIndex(df.index).hour
+        features['day_of_week'] = pd.DatetimeIndex(df.index).dayofweek
+
+        return features
+
     def create_trend_features(self, df, timeframe):
         """트렌드 추종 모델용 특징 (15m/1h/4h용 - 15개 특징)"""
         features = pd.DataFrame(index=df.index)
@@ -253,26 +320,39 @@ class BTCTradingSystem:
             return None, 0
 
         try:
-            # 데이터 수집 (트렌드 모델은 더 많은 데이터 필요)
-            limit = 250 if timeframe in ['30m', '4h', '1d'] else 100
+            # 데이터 수집 (균형 모델은 더 많은 데이터 필요)
+            limit = 250
             ohlcv = self.exchange.fetch_ohlcv('BTC/USDT', timeframe, limit=limit)
             df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            df.set_index('timestamp', inplace=True)
 
-            # 타임프레임별 특징 생성
-            if timeframe == '30m':
-                # 30m Breakout 모델은 특별한 features 사용
-                features = self.create_30m_enhanced_features(df)
-            else:
-                # 15m, 1h, 4h는 모두 트렌드 추종 특징 사용
-                features = self.create_trend_features(df, timeframe)
-
+            # 균형 모델용 향상된 특징 사용
+            features = self.create_enhanced_features(df)
             X = features.dropna().iloc[-1:]
 
             if len(X) == 0:
                 return None, 0
 
+            # 모델과 스케일러가 있는지 확인
+            model_info = self.models.get(timeframe)
+            scaler = self.scalers.get(timeframe)
+
+            if model_info is None or scaler is None:
+                return None, 0
+
+            # 모델이 기대하는 특징 선택 (균형 모델은 저장된 특징 리스트 사용)
+            if hasattr(model_info, 'feature_names_in_'):
+                # sklearn 모델의 경우
+                expected_features = model_info.feature_names_in_
+                X = X[expected_features]
+            elif hasattr(model_info, 'get_booster') and hasattr(model_info.get_booster(), 'feature_names'):
+                # XGBoost 모델의 경우
+                expected_features = model_info.get_booster().feature_names
+                X = X[expected_features]
+
             # 스케일링
-            X_scaled = self.scalers[timeframe].transform(X)
+            X_scaled = scaler.transform(X)
 
             # 예측
             model_dict = self.models[timeframe]

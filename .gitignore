@@ -39,6 +39,8 @@ logs/
 .env
 *.pkl.backup
 *.model.backup
+catboost_info/
+reports/
 
 # Jupyter
 .ipynb_checkpoints/

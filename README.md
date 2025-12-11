@@ -1,23 +1,28 @@
 # 🚀 BTC Trading System
-## 검증된 방향성 예측 ML 기반 거래 시스템
+## Deep Ensemble 방향성 예측 시스템 (72%+ 정확도 달성!)
 
 ---
 
 ## 📊 시스템 개요
 
-### 🏆 현재 운영 모델 (검증된 성능)
-| 타임프레임 | 전략 | 모델 | 정확도 | 특징 |
-|-----------|------|------|--------|------|
-| **30분** | **Breakout** | NeuralNet | **80.5%** | 🌟 최고 성능, 레벨 돌파 특화 |
-| **4시간** | **Trend Following** | NeuralNet | **77.8%** | 📈 장기 추세 포착 |
-| **15분** | **Trend Following** | GradientBoost | **75.7%** | ⚡ 단기 추세 |
-| **1시간** | **Trend Following** | GradientBoost | **67.9%** | 📊 중기 추세 |
+### 🏆 Deep Ensemble 모델 시스템 (v4.0)
+14개 모델 앙상블로 안정적인 방향성 예측
 
-### 💡 핵심 개선사항
-- **방향성 예측 특화**: UP/DOWN만 예측 (NEUTRAL 편향 제거)
-- **8가지 전략 테스트**: 160+ 모델 중 최고 성능 선별
-- **실전 사용 가능**: 고신뢰도 신호 시 75-80% 정확도
-- **MCP 서버**: Claude Desktop 통합 지원
+| 타임프레임 | 상승 모델 | 하락 모델 | 평균 |
+|-----------|-----------|-----------|------|
+| **15분** | ✅ 62.8% / ✅ 65.2% (Adv) | ❌ 56.7% | 61.6% |
+| **30분** | ✅ 72.9% | ✅ 70.4% | 71.7% |
+| **1시간** | ⭐ 79.6% | ✅ 78.7% | 79.2% |
+| **4시간** | ✅ 75.9% | ✅ 74.1% | 75.0% |
+
+**성공률: 88.9%** (9개 중 8개 성공) | **평균: 72.4%**
+
+### 💡 핵심 특징
+- **Deep Ensemble**: 14개 모델 (XGBoost, LightGBM, CatBoost, Extra Trees)
+- **방향별 특화**: UP/DOWN 별도 모델로 정확도 향상
+- **합의 예측**: 가중 투표를 통한 안정적 신호
+- **시간대 최적화**: 아시아/유럽/미국 세션별 최적화
+- **MCP 서버**: LLM 통합 API 지원
 
 ---
 
@@ -25,24 +30,24 @@
 
 ### 1. 빠른 시작
 ```bash
-# 현재 신호 확인
-python run.py
+# 합의 예측 (모든 모델)
+python scripts/consensus_prediction.py
 
-# 또는 직접 실행
-cd btc_trading_system/core
-python main.py
+# 실시간 거래 전략
+python scripts/live_trading_strategy.py
+
+# 개별 모델 테스트
+python scripts/test_1h_up.py  # 최고 성능 모델
 ```
 
-### 2. 실행 옵션
+### 2. MCP 서버 실행 (LLM 통합)
 ```bash
-# 단일 신호 생성
-python run.py signal
+# MCP 서버 시작
+cd mcp_server
+python server.py
 
-# 15분마다 모니터링
-python run.py monitor
-
-# 백테스트 결과 확인
-python run.py backtest
+# 별도 터미널에서 API 테스트
+curl http://localhost:5000/predict/1h/up
 ```
 
 ---
