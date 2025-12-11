@@ -231,8 +231,8 @@ def format_market_analysis_markdown(all_predictions: Dict, consensus: Dict) -> s
         if preds:
             analysis += f"\n### {tf_name} Timeframe\n"
             for pred in preds:
-                emoji = "📈" if pred['prediction'] == 'UP' else "📉"
-                analysis += f"- {emoji} **{pred['direction']}**: {pred['prediction']} ({pred['confidence']:.1%} confidence, {pred['model_accuracy']}% accuracy)\n"
+                emoji = "📈" if pred['signal'] == 'UP' else "📉" if pred['signal'] == 'DOWN' else "⚪"
+                analysis += f"- {emoji} **{pred['direction']}**: {pred['signal']} ({pred['confidence']:.1%} confidence, {pred['model_accuracy']}% accuracy, Real: {pred['real_confidence']:.1%})\n"
 
     # Add interpretation guide
     analysis += """
@@ -300,8 +300,8 @@ async def btc_get_prediction(request: GetPredictionRequest) -> str:
         predictor = BTCPredictor()
 
     try:
-        # Get prediction
-        result = predictor.predict(request.timeframe, request.direction)
+        # Get prediction - convert Enum to string values
+        result = predictor.predict(request.timeframe.value, request.direction.value)
 
         # Format response based on requested format
         if request.format == ResponseFormat.MARKDOWN:
