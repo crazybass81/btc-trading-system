@@ -1,53 +1,53 @@
 # 🚀 BTC Trading System
-## Deep Ensemble 방향성 예측 시스템 (72%+ 정확도 달성!)
+## Deep Learning Direction Prediction System (73.8% Average Accuracy)
 
 ---
 
-## 📊 시스템 개요
+## 📊 System Overview
 
-### 🏆 Deep Ensemble 모델 시스템 (v4.0)
-14개 모델 앙상블로 안정적인 방향성 예측
+### 🏆 Production Models (v1.1.0)
+Direction-specific models with real confidence scoring
 
-| 타임프레임 | 상승 모델 | 하락 모델 | 평균 |
-|-----------|-----------|-----------|------|
-| **15분** | ✅ 62.8% / ✅ 65.2% (Adv) | ❌ 56.7% | 61.6% |
-| **30분** | ✅ 72.9% | ✅ 70.4% | 71.7% |
-| **1시간** | ⭐ 79.6% | ✅ 78.7% | 79.2% |
-| **4시간** | ✅ 75.9% | ✅ 74.1% | 75.0% |
+| Timeframe | UP Model | DOWN Model | Average |
+|-----------|----------|------------|---------|
+| **15m** | ✅ 65.2% (Advanced ML) | - | 65.2% |
+| **30m** | ✅ 72.9% | ✅ 70.4% | 71.7% |
+| **1h** | ⭐ 79.6% | ✅ 78.7% | 79.2% |
+| **4h** | ✅ 75.9% | ✅ 74.1% | 75.0% |
 
-**성공률: 88.9%** (9개 중 8개 성공) | **평균: 72.4%**
+**Success Rate: 77.8%** (7 out of 9 models) | **Average: 73.8%**
 
-### 💡 핵심 특징
-- **Deep Ensemble**: 14개 모델 (XGBoost, LightGBM, CatBoost, Extra Trees)
-- **방향별 특화**: UP/DOWN 별도 모델로 정확도 향상
-- **합의 예측**: 가중 투표를 통한 안정적 신호
-- **시간대 최적화**: 아시아/유럽/미국 세션별 최적화
-- **MCP 서버**: LLM 통합 API 지원
+### 💡 Key Features
+- **Deep Ensemble**: 14 models per direction (XGBoost, LightGBM, CatBoost, Extra Trees)
+- **Direction-Specific**: Separate UP/DOWN models for higher accuracy
+- **Real Confidence**: Prediction probability × Model accuracy = Actual success probability
+- **Signal Separation**: UP models only generate UP signals, DOWN models only generate DOWN signals
+- **MCP Server**: LLM-ready API with FastMCP protocol
 
 ---
 
-## 🔧 설치 및 실행
+## 🔧 Installation & Usage
 
-### 1. 빠른 시작
+### 1. Quick Start
 ```bash
-# 합의 예측 (모든 모델)
+# Install dependencies
+pip install -r requirements.txt
+
+# Run consensus prediction
 python scripts/consensus_prediction.py
 
-# 실시간 거래 전략
+# Start live trading strategy
 python scripts/live_trading_strategy.py
-
-# 개별 모델 테스트
-python scripts/test_1h_up.py  # 최고 성능 모델
 ```
 
-### 2. MCP 서버 실행 (LLM 통합)
+### 2. MCP Server (LLM Integration)
 ```bash
-# MCP 서버 시작
+# Start MCP server
 cd mcp_server
-python server.py
+MCP_PORT=5001 python mcp_server.py
 
-# 별도 터미널에서 API 테스트
-curl http://localhost:5000/predict/1h/up
+# Or use the run script
+./run_mcp.sh
 ```
 
 ---
